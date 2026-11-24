@@ -1,0 +1,212 @@
+/* Every layer is a 160 x 276 pixel picture stretched over the stage, one scene pixel = --px; windows and buttons are
+   the 9-slice paper frame; the pixel font only at 12px and 16px so it stays sharp. */
+@font-face {
+  font-family: "FusionPixel";
+  src: url("assets/fonts/fusion-pixel-12px-latin.woff2") format("woff2");
+  font-display: swap;
+}
+/* the CJK cuts load only when there is CJK to draw */
+@font-face {
+  font-family: "FusionPixelSC"; src: url("assets/fonts/fusion-pixel-12px-zh_hans.woff2") format("woff2"); font-display: swap;
+  unicode-range: U+2E80-9FFF, U+F900-FAFF, U+FE30-FE4F, U+FF00-FFEF;
+}
+@font-face {
+  font-family: "FusionPixelTC"; src: url("assets/fonts/fusion-pixel-12px-zh_hant.woff2") format("woff2"); font-display: swap;
+  unicode-range: U+2E80-9FFF, U+F900-FAFF, U+FE30-FE4F, U+FF00-FFEF;
+}
+@font-face {
+  font-family: "FusionPixelJP"; src: url("assets/fonts/fusion-pixel-12px-ja.woff2") format("woff2"); font-display: swap;
+  unicode-range: U+2E80-9FFF, U+F900-FAFF, U+FE30-FE4F, U+FF00-FFEF;
+}
+
+* { box-sizing: border-box; }
+/* the game is the whole page and never scrolls (her 10/6: a page that moves under your thumb spoils it); only the
+   windows inside the stage scroll */
+html, body { margin: 0; height: 100%; overflow: hidden; overscroll-behavior: none; }
+body {
+  touch-action: manipulation;
+  background: #efe6d6;
+  color: #4a2c33;
+  transition: background .8s ease;
+}
+body.night { background: #151827; }
+
+.wrap {
+  --pad-t: max(6px, env(safe-area-inset-top)); --pad-b: max(6px, env(safe-area-inset-bottom));
+  height: 100vh; height: 100svh;                     /* the small viewport: with Safari's bars showing it still fits */
+  display: grid; place-items: center;
+  padding: var(--pad-t) max(6px, env(safe-area-inset-right)) var(--pad-b) max(6px, env(safe-area-inset-left));
+}
+
+.px-ui, .px-ui * {
+  font-family: "FusionPixel", ui-monospace, monospace;
+  letter-spacing: 0;
+  font-size: 12px;
+  line-height: 1.5;
+}
+/* by the page's language only: a language button marked lang="ja" on an English page must not pull in a CJK cut */
+html:lang(zh-Hans) .px-ui, html:lang(zh-Hans) .px-ui * { font-family: "FusionPixel", "FusionPixelSC", ui-monospace, monospace; }
+html:lang(zh-Hant) .px-ui, html:lang(zh-Hant) .px-ui * { font-family: "FusionPixel", "FusionPixelTC", ui-monospace, monospace; }
+html:lang(ja) .px-ui, html:lang(ja) .px-ui * { font-family: "FusionPixel", "FusionPixelJP", ui-monospace, monospace; }
+.px-ui { color: #4a2c33; }
+.px-ui p, .px-ui textarea, .px-ui input, .px-ui h1, .px-ui h2 { font-size: 16px; line-height: 1.6; }
+.px-ui h1, .px-ui h2 { font-weight: normal; margin: 0; }
+
+.stage {
+  position: relative;
+  width: min(100%, 560px, calc((100vh - var(--pad-t) - var(--pad-b)) * 160 / 276));       /* as tall as fits */
+  width: min(100%, 560px, calc((100svh - var(--pad-t) - var(--pad-b)) * 160 / 276));
+  aspect-ratio: 160 / 276;
+  container-type: inline-size;
+  --px: calc(100cqw / 160);
+  background: #fef9ef;
+  border-radius: 14px;
+  overflow: hidden;
+  transition: background .8s ease;
+  user-select: none;
+  -webkit-tap-highlight-color: transparent;
+}
+.stage.night { background: #1e2234; }
+
+.layer {
+  position: absolute; inset: 0; width: 100%; height: 100%;
+  image-rendering: pixelated; pointer-events: none; user-select: none;
+}
+.fade { transition: opacity .8s ease, filter .8s ease; }
+.pix { image-rendering: pixelated; }
+
+.hit {
+  position: absolute; padding: 0; margin: 0; border: 0; background: none; cursor: pointer; pointer-events: auto;
+  -webkit-tap-highlight-color: transparent;
+}
+.hit:active { transform: translateY(calc(var(--px) * 1)); }
+.hit img { width: 100%; height: 100%; display: block; image-rendering: pixelated; pointer-events: none; }
+
+/* the paper frame: windows, buttons, text boxes */
+.px-frame, .px-ui button:not(.hit), .px-ui textarea, .px-ui input[type="text"] {
+  border: calc(var(--px, 3px) * 3) solid transparent;
+  border-image: url("assets/pixel/ui/frame.png") 3 fill / calc(var(--px, 3px) * 3) / 0 stretch;
+  border-radius: 0;
+  background: none;
+  color: #4a2c33;
+  image-rendering: pixelated;
+}
+.px-ui button:not(.hit) { padding: 2px 8px; cursor: pointer; }
+.px-ui button:not(.hit):active { transform: translateY(1px); filter: brightness(.9); }
+.px-ui button:disabled { opacity: .45; cursor: default; }
+/* chosen: the pink paper (as specific as the frame rule above, or it never shows) */
+.px-ui button[aria-checked="true"]:not(.hit), .px-ui button[aria-selected="true"]:not(.hit) {
+  border-image-source: url("assets/pixel/ui/frame-pink.png"); color: #6e1f3a;
+}
+.px-ui textarea, .px-ui input[type="text"] { width: 100%; padding: calc(var(--px) * 2); outline: none; resize: none; }
+
+.sheet-bg {
+  position: absolute; inset: 0; z-index: 20; display: flex; align-items: flex-end;
+  background: rgba(20, 16, 34, .38);
+}
+.sheet {
+  width: 100%; margin: calc(var(--px) * 4); padding: calc(var(--px) * 2);
+  max-height: 76%; overflow-y: auto; -webkit-overflow-scrolling: touch;
+}
+.sheet h2 { margin-bottom: 6px; }
+/* the title screen of a first visit: the name of the game, the two of them, the languages, Start */
+.sheet h1.title-name { text-align: center; font-size: 1.5em; line-height: 1.3; margin: calc(var(--px) * 3) 0 calc(var(--px) * 1); }
+/* one grid for both rows (her 11/21: the languages hung to the left over a centred Start): four equal languages from
+   edge to edge, Start under the middle two */
+.sheet .title-langs, .sheet .title-start { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: calc(var(--px) * 2); }
+.sheet .title-langs button { padding-left: 0; padding-right: 0; white-space: nowrap; }
+.sheet .title-start { margin-top: calc(var(--px) * 2); }
+.sheet .title-start button { grid-column: 2 / 4; }
+.sheet p { margin: 4px 0; white-space: pre-wrap; word-break: break-word; }
+.row { display: flex; gap: 6px; flex-wrap: wrap; align-items: center; margin: 6px 0; }
+.row.end { justify-content: flex-end; }
+.grow { flex: 1; min-width: 0; }
+.sheet .section { margin-top: 12px; }
+/* Settings as a game menu: one panel size for every tab, the tabs fixed on top and Close at the bottom, so switching
+   tabs moves nothing but the page between them */
+.sheet.menu { height: 86%; max-height: 86%; overflow: hidden; display: flex; flex-direction: column; }
+.menu-page { flex: 1; min-height: 0; overflow-y: auto; -webkit-overflow-scrolling: touch; }
+.tabs { display: flex; gap: 4px; margin: 0 0 8px; }
+.tabs button { flex: 1; min-width: 0; padding: 2px 2px !important; white-space: nowrap; }
+.cast-row { display: flex; gap: 8px; justify-content: center; margin: 6px 0; }
+.cast-row figure { margin: 0; flex: 1; min-width: 0; display: flex; flex-direction: column; align-items: center; gap: 2px; }
+.row.own-chars { justify-content: center; margin: 0 0 2px; }
+/* a name you type over where it stands (her 11/20): no paper frame, a dotted line under it until it has the cursor.
+   16px like every field: smaller and iOS zooms the page when it is tapped */
+.px-ui input.name-edit[type="text"] {
+  width: calc(var(--px) * 56); max-width: 100%; padding: 0 calc(var(--px) * 1); text-align: center;
+  border: 0; border-image: none; border-bottom: calc(var(--px) * 1) dotted rgba(74, 44, 51, .5); background: none;
+}
+.px-ui input.name-edit[type="text"]:focus { border-bottom: calc(var(--px) * 1) solid #6e1f3a; }
+/* a pencil at the right end of a name that can be changed (her 11/21). The same room is kept on the left so the name
+   still sits in the middle; the pencil takes no taps, they go to the field under it */
+.name-wrap { position: relative; display: block; width: calc(var(--px) * 56); max-width: 100%; }
+.px-ui .name-wrap input.name-edit[type="text"] { width: 100%; padding: 0 calc(var(--px) * 9); }
+.name-wrap .pen {
+  position: absolute; right: calc(var(--px) * 1); bottom: calc(var(--px) * 3); width: calc(var(--px) * 7); height: calc(var(--px) * 7);
+  background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 7 7' shape-rendering='crispEdges'%3E%3Cpath fill='%234a2c33' d='M5 0h2v2h-1v1h-1v1h-1v1h-1v1h-1v1h-2v-2h1v-1h1v-1h1v-1h1v-1h1z'/%3E%3Cpath fill='%23e58fa6' d='M5 1h1v1h-1z'/%3E%3Cpath fill='%23e0a93f' d='M4 2h1v1h-1zM3 3h1v1h-1zM2 4h1v1h-1z'/%3E%3Cpath fill='%23f6e7c8' d='M1 5h1v1h-1z'/%3E%3C/svg%3E") no-repeat center / 100% 100%; image-rendering: pixelated; pointer-events: none;
+}
+/* the credits, set like the end of the film: a gold role over its names; the stars across the top and the rest in two
+   columns, so the page shows them all without scrolling (her 11/20) */
+.credits { display: grid; grid-template-columns: 1fr 1fr; column-gap: calc(var(--px) * 3); text-align: center; margin: 4px 0 8px; }
+.credits .credit:first-child { grid-column: 1 / -1; }
+.credits .role { color: #a8741f; margin-top: 8px; }
+.credits .who { white-space: pre-line; }
+.notice-list { margin: 4px 0; padding-left: 1.4em; }
+.notice-list li { margin: 2px 0; }
+.muted { opacity: .7; }
+.small { font-size: 12px !important; }
+[role="radio"] { padding: 1px 6px !important; }
+
+.styles { display: grid; grid-template-columns: repeat(7, 1fr); gap: 4px; margin: 6px 0; }
+.styles button { padding: 2px !important; display: flex; align-items: center; justify-content: center; min-height: 36px; }
+.styles button.any { grid-column: span 2; }
+.styles img { width: 24px; height: 30px; image-rendering: pixelated; }
+
+.list { list-style: none; margin: 6px 0 0; padding: 0; }
+.list li button { width: 100%; display: flex; gap: 8px; align-items: center; text-align: left; margin: 0 0 4px; }
+.list img { width: 22px; height: 27px; image-rendering: pixelated; flex: none; }
+.list .ex { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+.list .ex > span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+.card-head { display: flex; gap: 10px; align-items: center; }
+.card-head img { width: 34px; height: 42px; image-rendering: pixelated; flex: none; }
+
+.who-look { position: relative; overflow: hidden; width: calc(var(--px) * 48); height: calc(var(--px) * 48); flex: none; }
+.who-look img { position: absolute; width: calc(var(--px) * 160); height: calc(var(--px) * 276); image-rendering: pixelated; }
+
+.toast {
+  position: absolute; left: 50%; top: calc(var(--px) * 8); transform: translateX(-50%); z-index: 30;
+  padding: 2px 10px; pointer-events: none; opacity: 0; transition: opacity .3s ease;
+}
+.toast.show { opacity: 1; }
+
+@keyframes star-on { 0% { opacity: 0 } 12% { opacity: 1 } 24% { opacity: 0 } 40% { opacity: 1 } 52% { opacity: 0 } 70%, 100% { opacity: 1 } }
+@keyframes glow { 0%, 100% { opacity: 1 } 50% { opacity: .72 } }
+.star-on { animation: star-on 1.4s linear both; }
+.star-glow { animation: star-on 1.4s linear both, glow 2.6s ease-in-out 1.4s infinite; mix-blend-mode: screen; }
+@media (prefers-reduced-motion: reduce) { .star-on, .star-glow { animation: none; } }
+
+/* the fluffballs breathe: two poses stacked, puffed up half the breath and settled the other half
+   (fluffballs.BREATH and BREATH_S: 1.6 s for the human, 2 s for the AI, so they drift in and out of step) */
+.breathe .flat { opacity: 0; }
+.breathe .rest { animation: breath-rest 1.6s step-end infinite; }
+.breathe .flat { animation: breath-flat 1.6s step-end infinite; }
+.breathe.ai img { animation-duration: 2s; }
+@keyframes breath-rest { 0% { opacity: 1 } 50% { opacity: 0 } }
+@keyframes breath-flat { 0% { opacity: 0 } 50% { opacity: 1 } }
+@media (prefers-reduced-motion: reduce) { .breathe img { animation: none; } }
+
+/* the star's film, over the whole stage */
+.film-bg { position: absolute; inset: 0; z-index: 40; background: #0b0d1f; }
+.film { position: absolute; inset: 0; width: 100%; height: 100%; border: 0; display: block; }
+.film-close { position: absolute; right: calc(var(--px) * 3); top: calc(var(--px) * 3); min-width: calc(var(--px) * 12); padding: 0 calc(var(--px) * 2); }
+
+/* a ticked line in a sheet */
+.check { display: flex; align-items: center; gap: calc(var(--px) * 2); margin: calc(var(--px) * 2) 0; cursor: pointer; }
+.check input { width: calc(var(--px) * 6); height: calc(var(--px) * 6); margin: 0; flex: none; }
+
+/* how many the human hung and has not yet copied for the AI: under the disk (in the packed page, where the disk is) */
+.give-badge { position: absolute; right: calc(var(--px) * -5); bottom: calc(var(--px) * -5); image-rendering: pixelated; pointer-events: none; }
+/* the words for the AI: small, scrolls, and can be pressed and held to select when the copy button cannot reach the clipboard */
+.px-ui textarea.give-text { font-size: 12px; line-height: 1.4; height: 8.5em; user-select: text; -webkit-user-select: text; white-space: pre; overflow: auto; }
